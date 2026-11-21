@@ -1,0 +1,1094 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <title>情緒翻翻樂｜ 情緒卡配對遊戲</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Google Fonts: Zen Maru Gothic & Noto Sans TC for warm, readable Traditional Chinese -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@500;700;900&family=Zen+Maru+Gothic:wght@500;700;900&display=swap" rel="stylesheet">
+
+  <style>
+    /* iPad 觸控與防誤觸最佳化 */
+    * {
+      -webkit-tap-highlight-color: transparent;
+      -webkit-touch-callout: none;
+      user-select: none;
+      -webkit-user-select: none;
+      box-sizing: border-box;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100dvh;
+      overflow: hidden; /* 確保在 iPad 上絕不出現捲軸 */
+      touch-action: manipulation; /* 禁用雙擊縮放，提升點擊反應速度 */
+      font-family: 'Zen Maru Gothic', 'Noto Sans TC', sans-serif;
+      background-color: #FDF8F2; /* 溫暖米白底色 */
+      color: #4A3F35;
+    }
+
+    /* 3D 翻牌動畫核心 */
+    .perspective-container {
+      perspective: 1200px;
+    }
+
+    .card-inner {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      transition: transform 0.55s cubic-bezier(0.34, 1.56, 0.64, 1);
+      transform-style: preserve-3d;
+      cursor: pointer;
+    }
+
+    .card-inner.is-flipped {
+      transform: rotateY(180deg);
+    }
+
+    .card-face {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
+      border-radius: 1.25rem;
+      box-shadow: 0 6px 16px -4px rgba(139, 115, 85, 0.14), 0 2px 6px -1px rgba(139, 115, 85, 0.08);
+      overflow: hidden;
+    }
+
+    /* 牌背設計：溫暖的點點與療癒葉片圖騰 */
+    .card-back {
+      background: linear-gradient(135deg, #F6E6D3 0%, #EED6BC 100%);
+      border: 3px solid #FFFDF9;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .card-back-pattern {
+      width: calc(100% - 14px);
+      height: calc(100% - 14px);
+      border-radius: 0.9rem;
+      border: 2px dashed rgba(180, 142, 105, 0.45);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background-image: radial-gradient(rgba(180, 142, 105, 0.18) 2px, transparent 2px);
+      background-size: 16px 16px;
+    }
+
+    /* 牌面設計 */
+    .card-front {
+      transform: rotateY(180deg);
+      background-color: #FFFFFF;
+      border: 3px solid #FFFFFF;
+    }
+
+    /* 配對成功微彈跳與發光動畫 */
+    @keyframes matchCelebrate {
+      0% { transform: rotateY(180deg) scale(1); }
+      40% { transform: rotateY(180deg) scale(1.06); }
+      75% { transform: rotateY(180deg) scale(0.98); }
+      100% { transform: rotateY(180deg) scale(1); }
+    }
+
+    .card-inner.is-matched {
+      animation: matchCelebrate 0.6s ease-out forwards;
+    }
+
+    .card-inner.is-matched .card-front {
+      box-shadow: 0 0 0 3px #86EFAC, 0 10px 20px -5px rgba(34, 197, 94, 0.25);
+    }
+
+    /* 彈窗進場動畫 */
+    @keyframes modalPop {
+      0% { opacity: 0; transform: scale(0.88) translateY(16px); }
+      100% { opacity: 1; transform: scale(1) translateY(0); }
+    }
+
+    .animate-modal-pop {
+      animation: modalPop 0.35s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    }
+
+    /* 隱藏捲軸但保留彈窗內容可滾動（防極端小螢幕） */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+  </style>
+</head>
+<body class="flex flex-col justify-between p-3 sm:p-4 md:p-5 select-none">
+
+  <!-- 頂部控制列 (Header) -->
+  <header class="w-full max-w-6xl mx-auto bg-white/85 backdrop-blur-md rounded-2xl shadow-sm border border-[#EDE2D5] px-3 py-2.5 sm:px-5 sm:py-3 flex flex-wrap items-center justify-between gap-2 shrink-0 z-10">
+    
+    <!-- 左側：標題與計分板 -->
+    <div class="flex items-center gap-3 sm:gap-4">
+      <div class="flex items-center gap-2">
+        <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-amber-100 flex items-center justify-center text-amber-600 shadow-inner">
+          <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M8 14s1.5 2 4 2 4-2 4-2"/>
+            <line x1="9" y1="9" x2="9.01" y2="9"/>
+            <line x1="15" y1="9" x2="15.01" y2="9"/>
+          </svg>
+        </div>
+        <div>
+          <h1 class="text-base sm:text-lg md:text-xl font-black tracking-wide text-[#5C4B3B] leading-tight">情緒小森林</h1>
+          <p class="text-[11px] sm:text-xs text-[#8C7A6B] hidden sm:block">iPad 互動情緒配對卡</p>
+        </div>
+      </div>
+
+      <!-- 狀態數據膠囊 -->
+      <div class="flex items-center gap-2 bg-[#FAF4EC] px-3 py-1.5 rounded-xl border border-[#EFE4D6]">
+        <div class="text-center px-1.5">
+          <span class="text-[11px] text-[#8C7A6B] block leading-none">已配對</span>
+          <span id="score-display" class="text-sm sm:text-base font-black text-emerald-600">0 / 6</span>
+        </div>
+        <div class="w-[1px] h-6 bg-[#E5D7C6]"></div>
+        <div class="text-center px-1.5">
+          <span class="text-[11px] text-[#8C7A6B] block leading-none">翻牌步數</span>
+          <span id="moves-display" class="text-sm sm:text-base font-black text-amber-600">0</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 右側：難度、模式與輔助開關 -->
+    <div class="flex flex-wrap items-center gap-1.5 sm:gap-2.5">
+      
+      <!-- 難度選擇 -->
+      <div class="flex bg-[#F3EAE0] p-1 rounded-xl" role="group" aria-label="難度選擇">
+        <button onclick="setDifficulty('easy')" id="btn-diff-easy" class="diff-btn px-2.5 py-1.5 sm:px-3 rounded-lg text-xs sm:text-sm font-bold transition-all bg-white text-[#5C4B3B] shadow-sm">
+          初階 <span class="hidden md:inline text-xs font-normal text-[#8C7A6B]">(12張)</span>
+        </button>
+        <button onclick="setDifficulty('medium')" id="btn-diff-medium" class="diff-btn px-2.5 py-1.5 sm:px-3 rounded-lg text-xs sm:text-sm font-bold transition-all text-[#8C7A6B] hover:text-[#5C4B3B]">
+          中階 <span class="hidden md:inline text-xs font-normal text-[#8C7A6B]">(16張)</span>
+        </button>
+        <button onclick="setDifficulty('hard')" id="btn-diff-hard" class="diff-btn px-2.5 py-1.5 sm:px-3 rounded-lg text-xs sm:text-sm font-bold transition-all text-[#8C7A6B] hover:text-[#5C4B3B]">
+          進階 <span class="hidden md:inline text-xs font-normal text-[#8C7A6B]">(20張)</span>
+        </button>
+      </div>
+
+      <!-- 玩法模式切換 -->
+      <button onclick="toggleGameMode()" id="btn-mode" class="px-3 py-2 rounded-xl bg-sky-50 hover:bg-sky-100 active:scale-95 text-sky-800 border border-sky-200 text-xs sm:text-sm font-bold transition-all flex items-center gap-1.5 shadow-sm" title="切換配對玩法">
+        <span id="mode-icon">🎴</span>
+        <span id="mode-text">經典配對</span>
+      </button>
+
+      <!-- 社工/教育引導「情緒小分享」開關 -->
+      <button onclick="toggleSharePrompt()" id="btn-share-toggle" class="px-3 py-2 rounded-xl bg-amber-100/80 hover:bg-amber-200/80 active:scale-95 text-amber-900 border border-amber-300 text-xs sm:text-sm font-bold transition-all flex items-center gap-1.5 shadow-sm" title="配對成功時顯示引導對話卡">
+        <span id="share-indicator" class="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block"></span>
+        <span>情緒小分享</span>
+      </button>
+
+      <!-- 音效開關 -->
+      <button onclick="toggleMute()" id="btn-mute" class="p-2 sm:p-2.5 rounded-xl bg-[#F3EAE0] hover:bg-[#E8DCCE] active:scale-95 text-[#5C4B3B] transition-all" aria-label="音效開關" title="開啟/關閉音效">
+        <svg id="icon-sound-on" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+          <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+          <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+        </svg>
+        <svg id="icon-sound-off" class="w-5 h-5 hidden text-rose-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+          <line x1="23" y1="9" x2="17" y2="15"></line>
+          <line x1="17" y1="9" x2="23" y2="15"></line>
+        </svg>
+      </button>
+
+      <!-- 重新開始 -->
+      <button onclick="initGame()" class="p-2 sm:p-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white shadow-sm transition-all flex items-center gap-1 font-bold text-xs sm:text-sm" aria-label="重新洗牌" title="重新洗牌">
+        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+          <path d="M3 3v5h5"/>
+        </svg>
+        <span class="hidden lg:inline pr-1">重玩</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- 遊戲主舞台 (自適應 iPad 橫向與直向滿版網格) -->
+  <main class="flex-1 w-full max-w-6xl mx-auto my-2.5 sm:my-3.5 flex items-center justify-center min-h-0">
+    <div id="game-board" class="w-full h-full grid gap-2.5 sm:gap-3.5 md:gap-4 transition-all duration-300">
+      <!-- 卡片將由 JS 動態生成並填滿網格 -->
+    </div>
+  </main>
+
+  <!-- 底部提示列 -->
+  <footer class="w-full max-w-6xl mx-auto text-center text-xs sm:text-sm text-[#8C7A6B] shrink-0 pb-0.5 flex items-center justify-center gap-2">
+    <span id="mode-hint-banner" class="bg-white/70 px-3 py-1 rounded-full border border-[#EDE2D5]">
+      💡 提示：點擊兩張卡片，找出相同的「情緒表情」吧！
+    </span>
+  </footer>
+
+  <!-- 彈窗 1：社工/教育引導「情緒小分享」互動卡 -->
+  <div id="share-modal" class="fixed inset-0 bg-stone-900/45 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+    <div class="bg-[#FFFDF9] border-4 border-white rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl animate-modal-pop text-center relative">
+      
+      <!-- 頂部標籤 -->
+      <div class="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-amber-100 text-amber-800 text-xs sm:text-sm font-bold mb-4">
+        <span>✨ 配對成功！情緒小分享</span>
+      </div>
+
+      <!-- 情緒大圖示與名稱 -->
+      <div id="modal-emotion-badge" class="w-28 h-28 sm:w-32 sm:h-32 mx-auto rounded-3xl flex items-center justify-center p-3 mb-3 shadow-inner">
+        <!-- SVG 動態插入 -->
+      </div>
+      <h2 id="modal-emotion-name" class="text-3xl sm:text-4xl font-black text-[#4A3F35] mb-2 tracking-wider">開心</h2>
+      
+      <!-- 情緒簡單定義 -->
+      <p id="modal-emotion-def" class="text-base sm:text-lg text-[#6E5D4F] bg-[#F8F2EA] rounded-2xl p-3.5 mb-4 leading-relaxed font-medium">
+        遇到喜歡的事情，心裡覺得甜甜的、充滿活力。
+      </p>
+
+      <!-- 引導提問區塊 -->
+      <div class="bg-sky-50/90 border-2 border-sky-100 rounded-2xl p-4 sm:p-5 mb-6 text-left">
+        <div class="flex items-center gap-2 text-sky-700 font-bold text-sm sm:text-base mb-1.5">
+          <span>💬 一起聊聊看：</span>
+        </div>
+        <p id="modal-emotion-question" class="text-base sm:text-xl font-bold text-sky-950 leading-snug">
+          你最近一次覺得「開心」是什麼時候呢？發生了什麼事？
+        </p>
+      </div>
+
+      <!-- 繼續遊戲按鈕 -->
+      <button onclick="closeShareModal()" class="w-full py-3.5 sm:py-4 rounded-2xl bg-emerald-500 hover:bg-emerald-600 active:scale-98 text-white text-lg sm:text-xl font-black shadow-lg shadow-emerald-500/25 transition-all">
+        聊完了，繼續遊戲！
+      </button>
+    </div>
+  </div>
+
+  <!-- 彈窗 2：通關鼓勵畫面 -->
+  <div id="victory-modal" class="fixed inset-0 bg-stone-900/50 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+    <div class="bg-[#FFFDF9] border-4 border-amber-200 rounded-3xl max-w-md w-full p-6 sm:p-8 shadow-2xl animate-modal-pop text-center">
+      <div class="text-5xl sm:text-6xl mb-3">🎉🌟</div>
+      <h2 class="text-2xl sm:text-3xl font-black text-[#4A3F35] mb-2">太棒了！全部配對完成！</h2>
+      <p class="text-base sm:text-lg text-[#7A6857] mb-6">你認識了好多不同的情緒，真是太厲害了！</p>
+      
+      <div class="grid grid-cols-2 gap-3 bg-[#FAF3E8] p-4 rounded-2xl mb-6 border border-[#EFE2D0]">
+        <div>
+          <span class="text-xs sm:text-sm text-[#8C7A6B] block">完成配對</span>
+          <span id="win-pairs" class="text-xl sm:text-2xl font-black text-emerald-600">6 組情緒</span>
+        </div>
+        <div>
+          <span class="text-xs sm:text-sm text-[#8C7A6B] block">總共翻牌</span>
+          <span id="win-moves" class="text-xl sm:text-2xl font-black text-amber-600">14 步</span>
+        </div>
+      </div>
+
+      <button onclick="closeVictoryAndRestart()" class="w-full py-4 rounded-2xl bg-amber-500 hover:bg-amber-600 active:scale-98 text-white text-lg sm:text-xl font-black shadow-lg shadow-amber-500/30 transition-all">
+        再玩一次 🔄
+      </button>
+    </div>
+  </div>
+
+  <script>
+    /**
+     * =========================================================================
+     * 1. 12 種豐富情緒資料庫 (含自製高辨識度 SVG 插畫、定義、情境與引導提問)
+     * =========================================================================
+     */
+    const EMOTIONS_DATA = [
+      {
+        id: 'happy',
+        name: '開心',
+        bgHex: '#FEF08A',
+        borderHex: '#FACC15',
+        textHex: '#854D0E',
+        shortDesc: '遇到喜歡的事，嘴角上揚、心裡甜甜的',
+        definition: '遇到喜歡的人事物或好消息時，心裡覺得暖暖的、充滿活力與快樂。',
+        question: '你最近一次覺得「開心」是什麼時候呢？發生了什麼事？',
+        svg: `<svg viewBox="0 0 100 100" class="w-full h-full">
+          <circle cx="50" cy="50" r="42" fill="#FDE047" stroke="#EAB308" stroke-width="3"/>
+          <!-- 腮紅 -->
+          <ellipse cx="26" cy="58" rx="7" ry="4.5" fill="#FB7185" opacity="0.6"/>
+          <ellipse cx="74" cy="58" rx="7" ry="4.5" fill="#FB7185" opacity="0.6"/>
+          <!-- 彎彎笑眼 -->
+          <path d="M 28 44 Q 35 34 42 44" fill="none" stroke="#422006" stroke-width="4.5" stroke-linecap="round"/>
+          <path d="M 58 44 Q 65 34 72 44" fill="none" stroke="#422006" stroke-width="4.5" stroke-linecap="round"/>
+          <!-- 開心大笑嘴巴 -->
+          <path d="M 32 56 Q 50 78 68 56 Z" fill="#EF4444" stroke="#422006" stroke-width="3.5" stroke-linejoin="round"/>
+          <path d="M 38 64 Q 50 74 62 64" fill="#FCA5A5"/>
+        </svg>`
+      },
+      {
+        id: 'angry',
+        name: '生氣',
+        bgHex: '#FECACA',
+        borderHex: '#F87171',
+        textHex: '#991B1B',
+        shortDesc: '覺得不公平或不如意，眉頭皺緊、熱熱的',
+        definition: '當事情不如預期或覺得不公平時，身體會覺得緊繃、熱熱的，想要大聲說話。',
+        question: '當你覺得「生氣」時，身體哪裡會有感覺？你會用什麼方法讓自己冷靜？',
+        svg: `<svg viewBox="0 0 100 100" class="w-full h-full">
+          <circle cx="50" cy="50" r="42" fill="#FCA5A5" stroke="#EF4444" stroke-width="3"/>
+          <!-- 怒氣符號 -->
+          <path d="M 74 20 L 78 26 L 84 22" fill="none" stroke="#DC2626" stroke-width="3" stroke-linecap="round"/>
+          <!-- 倒八字眉 -->
+          <path d="M 26 36 L 43 44" stroke="#450A0A" stroke-width="4.5" stroke-linecap="round"/>
+          <path d="M 74 36 L 57 44" stroke="#450A0A" stroke-width="4.5" stroke-linecap="round"/>
+          <!-- 眼睛 -->
+          <circle cx="35" cy="49" r="4.5" fill="#450A0A"/>
+          <circle cx="65" cy="49" r="4.5" fill="#450A0A"/>
+          <!-- 生氣嘴巴 -->
+          <path d="M 34 70 Q 50 58 66 70" fill="none" stroke="#450A0A" stroke-width="4.5" stroke-linecap="round"/>
+        </svg>`
+      },
+      {
+        id: 'sad',
+        name: '難過',
+        bgHex: '#BAE6FD',
+        borderHex: '#38BDF8',
+        textHex: '#075985',
+        shortDesc: '失去心愛的東西或受挫，心裡酸酸想哭',
+        definition: '失去重要的東西、跟朋友分開或遇到挫折時，心裡酸酸的、眼淚想流下來的感覺。',
+        question: '覺得「難過」的時候，你希望身邊的人怎麼安慰你呢？',
+        svg: `<svg viewBox="0 0 100 100" class="w-full h-full">
+          <circle cx="50" cy="50" r="42" fill="#93C5FD" stroke="#3B82F6" stroke-width="3"/>
+          <!-- 八字眉 -->
+          <path d="M 26 42 L 42 35" stroke="#1E3A8A" stroke-width="4" stroke-linecap="round"/>
+          <path d="M 74 42 L 58 35" stroke="#1E3A8A" stroke-width="4" stroke-linecap="round"/>
+          <!-- 眼睛 -->
+          <circle cx="35" cy="48" r="4.5" fill="#1E3A8A"/>
+          <circle cx="65" cy="48" r="4.5" fill="#1E3A8A"/>
+          <!-- 眼淚 -->
+          <path d="M 32 55 Q 27 65 32 69 Q 37 65 32 55 Z" fill="#E0F2FE" stroke="#0284C7" stroke-width="1.5"/>
+          <!-- 委屈難過嘴 -->
+          <path d="M 36 70 Q 50 60 64 70" fill="none" stroke="#1E3A8A" stroke-width="4" stroke-linecap="round"/>
+        </svg>`
+      },
+      {
+        id: 'scared',
+        name: '害怕',
+        bgHex: '#DDD6FE',
+        borderHex: '#A78BFA',
+        textHex: '#5B21B6',
+        shortDesc: '遇到黑黑或未知的事，心跳變快想躲起來',
+        definition: '面對突然的巨響、黑暗或未知的危險時，心跳變快、想要躲起來保護自己。',
+        question: '有沒有什麼事情會讓你覺得「害怕」？誰陪在你身邊會讓你比較安心？',
+        svg: `<svg viewBox="0 0 100 100" class="w-full h-full">
+          <circle cx="50" cy="50" r="42" fill="#C4B5FD" stroke="#8B5CF6" stroke-width="3"/>
+          <!-- 冷汗 -->
+          <path d="M 76 34 Q 72 42 76 46 Q 80 42 76 34 Z" fill="#E0F2FE" stroke="#0284C7" stroke-width="1.5"/>
+          <!-- 驚恐大眼 -->
+          <circle cx="35" cy="45" r="8" fill="#FFFFFF" stroke="#4C1D95" stroke-width="2.5"/>
+          <circle cx="35" cy="45" r="3.5" fill="#4C1D95"/>
+          <circle cx="65" cy="45" r="8" fill="#FFFFFF" stroke="#4C1D95" stroke-width="2.5"/>
+          <circle cx="65" cy="45" r="3.5" fill="#4C1D95"/>
+          <!-- 發抖波浪嘴 -->
+          <path d="M 34 68 Q 42 63 50 68 Q 58 73 66 68" fill="none" stroke="#4C1D95" stroke-width="4" stroke-linecap="round"/>
+        </svg>`
+      },
+      {
+        id: 'surprised',
+        name: '驚訝',
+        bgHex: '#FED7AA',
+        borderHex: '#FB923C',
+        textHex: '#9A3412',
+        shortDesc: '突然發生意想不到的事，眼睛嘴巴睜大大',
+        definition: '突然發生原本沒有預料到的事情，讓人眼睛睜得大大的、一時說不出話。',
+        question: '你曾經收過什麼讓你覺得好「驚訝」的禮物或好消息嗎？',
+        svg: `<svg viewBox="0 0 100 100" class="w-full h-full">
+          <circle cx="50" cy="50" r="42" fill="#FDBA74" stroke="#F97316" stroke-width="3"/>
+          <!-- 高高挑起的眉毛 -->
+          <path d="M 27 31 Q 35 24 43 31" fill="none" stroke="#7C2D12" stroke-width="3.5" stroke-linecap="round"/>
+          <path d="M 57 31 Q 65 24 73 31" fill="none" stroke="#7C2D12" stroke-width="3.5" stroke-linecap="round"/>
+          <!-- 圓眼睛 -->
+          <circle cx="35" cy="44" r="6" fill="#7C2D12"/>
+          <circle cx="33" cy="42" r="2" fill="#FFFFFF"/>
+          <circle cx="65" cy="44" r="6" fill="#7C2D12"/>
+          <circle cx="63" cy="42" r="2" fill="#FFFFFF"/>
+          <!-- O型嘴巴 -->
+          <ellipse cx="50" cy="67" rx="8" ry="10" fill="#EF4444" stroke="#7C2D12" stroke-width="3.5"/>
+        </svg>`
+      },
+      {
+        id: 'shy',
+        name: '害羞',
+        bgHex: '#FBCFE8',
+        borderHex: '#F472B6',
+        textHex: '#9D174D',
+        shortDesc: '被大家稱讚或注意時，臉頰紅紅不好意思',
+        definition: '受到大家稱讚或面對不熟悉的人時，臉頰熱熱紅紅的、有點不好意思的感覺。',
+        question: '在什麼情況下你會覺得「害羞」呢？那時候你通常會怎麼做？',
+        svg: `<svg viewBox="0 0 100 100" class="w-full h-full">
+          <circle cx="50" cy="50" r="42" fill="#F9A8D4" stroke="#EC4899" stroke-width="3"/>
+          <!-- 濃濃大腮紅 -->
+          <ellipse cx="26" cy="55" rx="9" ry="5.5" fill="#F43F5E" opacity="0.65"/>
+          <ellipse cx="74" cy="55" rx="9" ry="5.5" fill="#F43F5E" opacity="0.65"/>
+          <!-- 害羞垂眼 -->
+          <path d="M 28 45 Q 35 50 42 45" fill="none" stroke="#831843" stroke-width="4" stroke-linecap="round"/>
+          <path d="M 58 45 Q 65 50 72 45" fill="none" stroke="#831843" stroke-width="4" stroke-linecap="round"/>
+          <!-- 小小微笑 -->
+          <path d="M 43 64 Q 50 70 57 64" fill="none" stroke="#831843" stroke-width="3.8" stroke-linecap="round"/>
+        </svg>`
+      },
+      {
+        id: 'jealous',
+        name: '嫉妒',
+        bgHex: '#D9F99D',
+        borderHex: '#A3E635',
+        textHex: '#3F6212',
+        shortDesc: '看到別人有自己想要的東西，心裡酸酸的',
+        definition: '看到別人擁有自己也想要的玩具、禮物或稱讚時，心裡覺得酸酸、不太舒服的感覺。',
+        question: '如果看到好朋友得到很棒的獎品，心裡有點「嫉妒」時，可以怎麼告訴自己？',
+        svg: `<svg viewBox="0 0 100 100" class="w-full h-full">
+          <circle cx="50" cy="50" r="42" fill="#BEF264" stroke="#84CC16" stroke-width="3"/>
+          <!-- 斜眼看旁邊 -->
+          <ellipse cx="35" cy="46" rx="7" ry="5.5" fill="#FFFFFF" stroke="#365314" stroke-width="2.5"/>
+          <circle cx="38" cy="46" r="3" fill="#365314"/>
+          <ellipse cx="65" cy="46" rx="7" ry="5.5" fill="#FFFFFF" stroke="#365314" stroke-width="2.5"/>
+          <circle cx="68" cy="46" r="3" fill="#365314"/>
+          <!-- 皺眉 -->
+          <path d="M 27 36 L 42 39" stroke="#365314" stroke-width="3.5" stroke-linecap="round"/>
+          <path d="M 58 39 L 73 36" stroke="#365314" stroke-width="3.5" stroke-linecap="round"/>
+          <!-- 嘟嘴歪一邊 -->
+          <path d="M 38 66 Q 50 62 60 68" fill="none" stroke="#365314" stroke-width="4" stroke-linecap="round"/>
+        </svg>`
+      },
+      {
+        id: 'proud',
+        name: '驕傲',
+        bgHex: '#FDE68A',
+        borderHex: '#F59E0B',
+        textHex: '#92400E',
+        shortDesc: '靠自己努力完成困難的事，覺得自己很棒',
+        definition: '靠著自己的努力完成一件原本覺得很難的事情，心裡覺得自己好棒的成就感。',
+        question: '你做過哪一件事情，讓你覺得對自己非常「驕傲」呢？',
+        svg: `<svg viewBox="0 0 100 100" class="w-full h-full">
+          <circle cx="50" cy="50" r="42" fill="#FCD34D" stroke="#F59E0B" stroke-width="3"/>
+          <!-- 閃亮星星 -->
+          <path d="M 78 24 L 80 29 L 85 31 L 80 33 L 78 38 L 76 33 L 71 31 L 76 29 Z" fill="#FFFBEB" stroke="#D97706" stroke-width="1.5"/>
+          <!-- 自信閉眼 -->
+          <path d="M 27 44 Q 35 37 43 44" fill="none" stroke="#78350F" stroke-width="4.5" stroke-linecap="round"/>
+          <path d="M 57 44 Q 65 37 73 44" fill="none" stroke="#78350F" stroke-width="4.5" stroke-linecap="round"/>
+          <!-- 得意微笑 -->
+          <path d="M 34 60 Q 50 73 66 60" fill="none" stroke="#78350F" stroke-width="4.5" stroke-linecap="round"/>
+        </svg>`
+      },
+      {
+        id: 'bored',
+        name: '無聊',
+        bgHex: '#E5E7EB',
+        borderHex: '#9CA3AF',
+        textHex: '#374151',
+        shortDesc: '沒有事情可以做，覺得時間過得好慢',
+        definition: '沒有有趣的事情可以做，覺得時間過得好慢、提不起精神的感覺。',
+        question: '當你覺得很「無聊」的時候，你最喜歡找什麼事情來做呢？',
+        svg: `<svg viewBox="0 0 100 100" class="w-full h-full">
+          <circle cx="50" cy="50" r="42" fill="#D1D5DB" stroke="#9CA3AF" stroke-width="3"/>
+          <!-- 半睜開的眼睛 -->
+          <line x1="27" y1="43" x2="43" y2="43" stroke="#374151" stroke-width="4" stroke-linecap="round"/>
+          <path d="M 30 43 A 5 5 0 0 0 40 43" fill="#374151"/>
+          <line x1="57" y1="43" x2="73" y2="43" stroke="#374151" stroke-width="4" stroke-linecap="round"/>
+          <path d="M 60 43 A 5 5 0 0 0 70 43" fill="#374151"/>
+          <!-- 平平的嘴巴 -->
+          <line x1="37" y1="66" x2="63" y2="66" stroke="#374151" stroke-width="4" stroke-linecap="round"/>
+        </svg>`
+      },
+      {
+        id: 'anxious',
+        name: '焦慮',
+        bgHex: '#C7D2FE',
+        borderHex: '#818CF8',
+        textHex: '#3730A3',
+        shortDesc: '擔心接下來的事做不好，心裡七上八下',
+        definition: '擔心接下來要發生的事情做不好（例如考試或上台），心裡七上八下、靜不下來。',
+        question: '考試或上台前會覺得「焦慮」嗎？深呼吸三次會不會讓你感覺好一點？',
+        svg: `<svg viewBox="0 0 100 100" class="w-full h-full">
+          <circle cx="50" cy="50" r="42" fill="#A5B4FC" stroke="#6366F1" stroke-width="3"/>
+          <!-- 擔憂八字眉 -->
+          <path d="M 26 39 L 42 33" stroke="#312E81" stroke-width="3.8" stroke-linecap="round"/>
+          <path d="M 74 39 L 58 33" stroke="#312E81" stroke-width="3.8" stroke-linecap="round"/>
+          <!-- 緊張眼神 -->
+          <circle cx="35" cy="47" r="5.5" fill="#FFFFFF" stroke="#312E81" stroke-width="2"/>
+          <circle cx="35" cy="47" r="2.5" fill="#312E81"/>
+          <circle cx="65" cy="47" r="5.5" fill="#FFFFFF" stroke="#312E81" stroke-width="2"/>
+          <circle cx="65" cy="47" r="2.5" fill="#312E81"/>
+          <!-- 咬唇/緊張嘴 -->
+          <rect x="36" y="62" width="28" height="9" rx="4.5" fill="#FFFFFF" stroke="#312E81" stroke-width="3"/>
+          <line x1="36" y1="66.5" x2="64" y2="66.5" stroke="#312E81" stroke-width="2"/>
+        </svg>`
+      },
+      {
+        id: 'calm',
+        name: '平靜',
+        bgHex: '#A7F3D0',
+        borderHex: '#34D399',
+        textHex: '#065F46',
+        shortDesc: '像微風吹過一樣，心裡很放鬆、很安穩',
+        definition: '像微風輕輕吹過湖面一樣，身體很放鬆、心裡很安穩、很舒服的感覺。',
+        question: '在哪一個地方或做什麼事情的時候，會讓你覺得心裡最「平靜」？',
+        svg: `<svg viewBox="0 0 100 100" class="w-full h-full">
+          <circle cx="50" cy="50" r="42" fill="#6EE7B7" stroke="#10B981" stroke-width="3"/>
+          <!-- 放鬆閉眼 -->
+          <path d="M 28 46 Q 35 51 42 46" fill="none" stroke="#064E3B" stroke-width="4" stroke-linecap="round"/>
+          <path d="M 58 46 Q 65 51 72 46" fill="none" stroke="#064E3B" stroke-width="4" stroke-linecap="round"/>
+          <!-- 柔和微笑 -->
+          <path d="M 38 63 Q 50 71 62 63" fill="none" stroke="#064E3B" stroke-width="4" stroke-linecap="round"/>
+        </svg>`
+      },
+      {
+        id: 'aggrieved',
+        name: '委屈',
+        bgHex: '#CCFBF1',
+        borderHex: '#2DD4BF',
+        textHex: '#115E59',
+        shortDesc: '被別人誤會卻說不出口，心裡悶悶的',
+        definition: '明明不是自己的錯卻被誤會，有話說不出來、心裡覺得悶悶又難受的感覺。',
+        question: '如果被別人誤會而覺得「委屈」時，你可以用什麼方式把心裡的話說出來？',
+        svg: `<svg viewBox="0 0 100 100" class="w-full h-full">
+          <circle cx="50" cy="50" r="42" fill="#99F6E4" stroke="#14B8A6" stroke-width="3"/>
+          <!-- 委屈眉毛 -->
+          <path d="M 27 40 L 42 35" stroke="#134E4A" stroke-width="3.8" stroke-linecap="round"/>
+          <path d="M 73 40 L 58 35" stroke="#134E4A" stroke-width="3.8" stroke-linecap="round"/>
+          <!-- 含淚大眼 -->
+          <circle cx="35" cy="48" r="6" fill="#134E4A"/>
+          <circle cx="33" cy="46" r="2.5" fill="#FFFFFF"/>
+          <circle cx="65" cy="48" r="6" fill="#134E4A"/>
+          <circle cx="63" cy="46" r="2.5" fill="#FFFFFF"/>
+          <!-- 嘟起的小嘴 -->
+          <path d="M 41 67 Q 50 61 59 67" fill="none" stroke="#134E4A" stroke-width="4" stroke-linecap="round"/>
+        </svg>`
+      }
+    ];
+
+    /**
+     * =========================================================================
+     * 2. Web Audio API 柔和療癒音效合成器 (無需外部音檔)
+     * =========================================================================
+     */
+    class SoundManager {
+      constructor() {
+        this.ctx = null;
+        this.muted = false;
+      }
+
+      init() {
+        if (!this.ctx) {
+          const AudioCtx = window.AudioContext || window.webkitAudioContext;
+          if (AudioCtx) {
+            this.ctx = new AudioCtx();
+          }
+        }
+        if (this.ctx && this.ctx.state === 'suspended') {
+          this.ctx.resume();
+        }
+      }
+
+      playFlip() {
+        if (this.muted) return;
+        this.init();
+        if (!this.ctx) return;
+
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(320, now);
+        osc.frequency.exponentialRampToValueAtTime(520, now + 0.08);
+
+        gain.gain.setValueAtTime(0.12, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+
+        osc.start(now);
+        osc.stop(now + 0.1);
+      }
+
+      playMatch() {
+        if (this.muted) return;
+        this.init();
+        if (!this.ctx) return;
+
+        // 溫暖的 C 大調琶音 (C5 - E5 - G5 - C6)
+        const notes = [523.25, 659.25, 783.99, 1046.50];
+        notes.forEach((freq, idx) => {
+          const now = this.ctx.currentTime + idx * 0.08;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(freq, now);
+
+          gain.gain.setValueAtTime(0.001, now);
+          gain.gain.linearRampToValueAtTime(0.16, now + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+
+          osc.start(now);
+          osc.stop(now + 0.36);
+        });
+      }
+
+      playMismatch() {
+        if (this.muted) return;
+        this.init();
+        if (!this.ctx) return;
+
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(260, now);
+        osc.frequency.linearRampToValueAtTime(210, now + 0.18);
+
+        gain.gain.setValueAtTime(0.1, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+
+        osc.start(now);
+        osc.stop(now + 0.22);
+      }
+
+      playVictory() {
+        if (this.muted) return;
+        this.init();
+        if (!this.ctx) return;
+
+        const melody = [
+          { freq: 523.25, time: 0, dur: 0.14 },
+          { freq: 659.25, time: 0.14, dur: 0.14 },
+          { freq: 783.99, time: 0.28, dur: 0.14 },
+          { freq: 1046.50, time: 0.44, dur: 0.45 },
+          { freq: 783.99, time: 0.65, dur: 0.15 },
+          { freq: 1046.50, time: 0.82, dur: 0.6 }
+        ];
+
+        melody.forEach(note => {
+          const now = this.ctx.currentTime + note.time;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(note.freq, now);
+
+          gain.gain.setValueAtTime(0.001, now);
+          gain.gain.linearRampToValueAtTime(0.18, now + 0.03);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + note.dur);
+
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+
+          osc.start(now);
+          osc.stop(now + note.dur + 0.02);
+        });
+      }
+    }
+
+    const soundFX = new SoundManager();
+
+    /**
+     * =========================================================================
+     * 3. 遊戲狀態管理與邏輯
+     * =========================================================================
+     */
+    const DIFFICULTY_CONFIG = {
+      easy: { pairs: 6, label: '初階' },    // 12 張 (橫向 4x3 / 直向 3x4)
+      medium: { pairs: 8, label: '中階' },  // 16 張 (橫向 4x4 / 直向 4x4)
+      hard: { pairs: 10, label: '進階' }    // 20 張 (橫向 5x4 / 直向 4x5)
+    };
+
+    let state = {
+      difficulty: 'easy',       // 'easy' | 'medium' | 'hard'
+      gameMode: 'classic',      // 'classic' (同圖同詞) | 'comprehension' (表情與情境詞彙配對)
+      enableSharePrompt: true,  // 是否開啟「情緒小分享」互動彈窗
+      cards: [],
+      flippedIndices: [],
+      matchedCount: 0,
+      moves: 0,
+      isLocked: false,
+      pendingVictory: false
+    };
+
+    /**
+     * 根據難度與 iPad 螢幕方向（直向/橫向）動態計算最佳網格行列數
+     */
+    function updateGridLayout() {
+      const board = document.getElementById('game-board');
+      const isLandscape = window.innerWidth >= window.innerHeight;
+      let cols = 4;
+      let rows = 3;
+
+      if (state.difficulty === 'easy') {
+        cols = isLandscape ? 4 : 3;
+        rows = isLandscape ? 3 : 4;
+      } else if (state.difficulty === 'medium') {
+        cols = 4;
+        rows = 4;
+      } else if (state.difficulty === 'hard') {
+        cols = isLandscape ? 5 : 4;
+        rows = isLandscape ? 4 : 5;
+      }
+
+      board.style.gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`;
+      board.style.gridTemplateRows = `repeat(${rows}, minmax(0, 1fr))`;
+    }
+
+    window.addEventListener('resize', updateGridLayout);
+    window.addEventListener('orientationchange', () => {
+      setTimeout(updateGridLayout, 100);
+    });
+
+    /**
+     * 洗牌演算法 (Fisher-Yates Shuffle)
+     */
+    function shuffleArray(array) {
+      const arr = [...array];
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    }
+
+    /**
+     * 初始化新遊戲
+     */
+    function initGame() {
+      const config = DIFFICULTY_CONFIG[state.difficulty];
+      // 隨機抽選指定數量的情緒
+      const selectedEmotions = shuffleArray(EMOTIONS_DATA).slice(0, config.pairs);
+
+      let deck = [];
+      selectedEmotions.forEach(emotion => {
+        if (state.gameMode === 'classic') {
+          // 經典模式：兩張相同的「表情插畫 + 情緒名稱」
+          deck.push({ emotion, cardType: 'classic', matched: false });
+          deck.push({ emotion, cardType: 'classic', matched: false });
+        } else {
+          // 進階理解模式：一張「純表情插畫卡」，一張「情緒名稱與簡單描述卡」
+          deck.push({ emotion, cardType: 'face-only', matched: false });
+          deck.push({ emotion, cardType: 'text-only', matched: false });
+        }
+      });
+
+      state.cards = shuffleArray(deck);
+      state.flippedIndices = [];
+      state.matchedCount = 0;
+      state.moves = 0;
+      state.isLocked = false;
+      state.pendingVictory = false;
+
+      updateStatsUI();
+      updateGridLayout();
+      renderBoard();
+    }
+
+    /**
+     * 渲染遊戲卡片網格
+     */
+    function renderBoard() {
+      const board = document.getElementById('game-board');
+      board.innerHTML = '';
+
+      state.cards.forEach((card, index) => {
+        const { emotion, cardType } = card;
+
+        // 卡片容器
+        const cardWrapper = document.createElement('div');
+        cardWrapper.className = 'perspective-container w-full h-full min-h-0 min-w-0';
+        cardWrapper.setAttribute('data-index', index);
+
+        // 決定正面內容結構
+        let frontContentHTML = '';
+
+        if (cardType === 'classic') {
+          // 經典模式：上方插畫 + 下方清晰情緒名稱
+          frontContentHTML = `
+            <div class="w-full h-full flex flex-col items-center justify-between p-2 sm:p-3" style="background-color: ${emotion.bgHex};">
+              <div class="flex-1 w-full flex items-center justify-center min-h-0 p-1">
+                <div class="w-full h-full max-w-[110px] max-h-[110px] sm:max-w-[130px] sm:max-h-[130px] flex items-center justify-center">
+                  ${emotion.svg}
+                </div>
+              </div>
+              <div class="w-full bg-white/90 rounded-xl py-1 sm:py-1.5 px-2 text-center shadow-sm shrink-0">
+                <span class="text-lg sm:text-xl md:text-2xl font-black tracking-widest" style="color: ${emotion.textHex};">
+                  ${emotion.name}
+                </span>
+              </div>
+            </div>
+          `;
+        } else if (cardType === 'face-only') {
+          // 理解模式 A：表情插畫卡
+          frontContentHTML = `
+            <div class="w-full h-full flex flex-col items-center justify-center p-2.5 sm:p-4 relative" style="background-color: ${emotion.bgHex};">
+              <span class="absolute top-2 left-2.5 text-[10px] sm:text-xs font-bold px-2 py-0.5 rounded-full bg-white/75 text-stone-600">表情卡</span>
+              <div class="w-4/5 h-4/5 max-w-[135px] max-h-[135px] flex items-center justify-center">
+                ${emotion.svg}
+              </div>
+            </div>
+          `;
+        } else {
+          // 理解模式 B：情緒詞彙與情境描述卡
+          frontContentHTML = `
+            <div class="w-full h-full flex flex-col items-center justify-center p-2.5 sm:p-3.5 text-center bg-white relative border-4" style="border-color: ${emotion.bgHex};">
+              <span class="absolute top-2 right-2.5 text-[10px] sm:text-xs font-bold px-2 py-0.5 rounded-full" style="background-color: ${emotion.bgHex}; color: ${emotion.textHex};">詞彙卡</span>
+              <h3 class="text-xl sm:text-2xl md:text-3xl font-black mb-1 sm:mb-2 tracking-wider" style="color: ${emotion.textHex};">
+                ${emotion.name}
+              </h3>
+              <p class="text-xs sm:text-sm md:text-base font-bold text-[#5C4B3B] leading-snug line-clamp-3 px-1">
+                ${emotion.shortDesc}
+              </p>
+            </div>
+          `;
+        }
+
+        cardWrapper.innerHTML = `
+          <div id="card-inner-${index}" class="card-inner" onclick="handleCardClick(${index})">
+            <!-- 牌背 -->
+            <div class="card-face card-back">
+              <div class="card-back-pattern">
+                <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-white/75 flex items-center justify-center shadow-sm text-[#B8926A]">
+                  <svg class="w-6 h-6 sm:w-7 sm:h-7" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+                  </svg>
+                </div>
+              </div>
+            </div>
+            <!-- 牌面 -->
+            <div class="card-face card-front">
+              ${frontContentHTML}
+            </div>
+          </div>
+        `;
+
+        board.appendChild(cardWrapper);
+      });
+    }
+
+    /**
+     * 點擊卡片處理
+     */
+    function handleCardClick(index) {
+      if (state.isLocked) return;
+      const card = state.cards[index];
+      if (!card || card.matched) return;
+      if (state.flippedIndices.includes(index)) return; // 避免重複點擊同一張牌
+
+      // 翻開卡片
+      soundFX.playFlip();
+      state.flippedIndices.push(index);
+      const cardInner = document.getElementById(`card-inner-${index}`);
+      cardInner.classList.add('is-flipped');
+
+      // 當翻開兩張卡片時進行比對
+      if (state.flippedIndices.length === 2) {
+        state.moves++;
+        updateStatsUI();
+        checkForMatch();
+      }
+    }
+
+    /**
+     * 檢查兩張翻開的卡片是否配對成功
+     */
+    function checkForMatch() {
+      state.isLocked = true;
+      const [idx1, idx2] = state.flippedIndices;
+      const card1 = state.cards[idx1];
+      const card2 = state.cards[idx2];
+
+      const isMatch = card1.emotion.id === card2.emotion.id;
+
+      if (isMatch) {
+        // 配對成功！
+        setTimeout(() => {
+          soundFX.playMatch();
+          card1.matched = true;
+          card2.matched = true;
+          state.matchedCount++;
+          updateStatsUI();
+
+          const el1 = document.getElementById(`card-inner-${idx1}`);
+          const el2 = document.getElementById(`card-inner-${idx2}`);
+          el1.classList.add('is-matched');
+          el2.classList.add('is-matched');
+
+          state.flippedIndices = [];
+          state.isLocked = false;
+
+          const totalPairs = DIFFICULTY_CONFIG[state.difficulty].pairs;
+          const isAllMatched = state.matchedCount === totalPairs;
+
+          // 檢查是否開啟「情緒小分享」引導彈窗
+          if (state.enableSharePrompt) {
+            state.pendingVictory = isAllMatched;
+            setTimeout(() => {
+              openShareModal(card1.emotion);
+            }, 450);
+          } else if (isAllMatched) {
+            setTimeout(() => {
+              showVictoryModal();
+            }, 550);
+          }
+        }, 300);
+      } else {
+        // 配對失敗，停留 1.1 秒讓兒童看清楚圖案與文字後再翻回
+        setTimeout(() => {
+          soundFX.playMismatch();
+          const el1 = document.getElementById(`card-inner-${idx1}`);
+          const el2 = document.getElementById(`card-inner-${idx2}`);
+          if (el1) el1.classList.remove('is-flipped');
+          if (el2) el2.classList.remove('is-flipped');
+
+          state.flippedIndices = [];
+          state.isLocked = false;
+        }, 1100);
+      }
+    }
+
+    /**
+     * =========================================================================
+     * 4. UI 更新與互動控制功能
+     * =========================================================================
+     */
+    function updateStatsUI() {
+      const totalPairs = DIFFICULTY_CONFIG[state.difficulty].pairs;
+      document.getElementById('score-display').textContent = `${state.matchedCount} / ${totalPairs}`;
+      document.getElementById('moves-display').textContent = state.moves;
+    }
+
+    function setDifficulty(level) {
+      if (state.difficulty === level) return;
+      state.difficulty = level;
+
+      // 更新按鈕樣式
+      ['easy', 'medium', 'hard'].forEach(lvl => {
+        const btn = document.getElementById(`btn-diff-${lvl}`);
+        if (lvl === level) {
+          btn.className = 'diff-btn px-2.5 py-1.5 sm:px-3 rounded-lg text-xs sm:text-sm font-bold transition-all bg-white text-[#5C4B3B] shadow-sm';
+        } else {
+          btn.className = 'diff-btn px-2.5 py-1.5 sm:px-3 rounded-lg text-xs sm:text-sm font-bold transition-all text-[#8C7A6B] hover:text-[#5C4B3B]';
+        }
+      });
+
+      initGame();
+    }
+
+    function toggleGameMode() {
+      state.gameMode = state.gameMode === 'classic' ? 'comprehension' : 'classic';
+      const iconEl = document.getElementById('mode-icon');
+      const textEl = document.getElementById('mode-text');
+      const hintEl = document.getElementById('mode-hint-banner');
+
+      if (state.gameMode === 'classic') {
+        iconEl.textContent = '🎴';
+        textEl.textContent = '經典配對';
+        hintEl.textContent = '💡 提示：點擊兩張卡片，找出相同的「情緒表情」吧！';
+      } else {
+        iconEl.textContent = '🧠';
+        textEl.textContent = '表情與情境';
+        hintEl.textContent = '💡 進階挑戰：請將「表情插畫卡」與對應的「情緒詞彙卡」配對在一起！';
+      }
+
+      initGame();
+    }
+
+    function toggleSharePrompt() {
+      state.enableSharePrompt = !state.enableSharePrompt;
+      const btn = document.getElementById('btn-share-toggle');
+      const indicator = document.getElementById('share-indicator');
+
+      if (state.enableSharePrompt) {
+        btn.classList.remove('bg-stone-100', 'text-stone-500', 'border-stone-200');
+        btn.classList.add('bg-amber-100/80', 'text-amber-900', 'border-amber-300');
+        indicator.classList.remove('bg-stone-400');
+        indicator.classList.add('bg-emerald-500');
+      } else {
+        btn.classList.remove('bg-amber-100/80', 'text-amber-900', 'border-amber-300');
+        btn.classList.add('bg-stone-100', 'text-stone-500', 'border-stone-200');
+        indicator.classList.remove('bg-emerald-500');
+        indicator.classList.add('bg-stone-400');
+      }
+    }
+
+    function toggleMute() {
+      soundFX.muted = !soundFX.muted;
+      document.getElementById('icon-sound-on').classList.toggle('hidden', soundFX.muted);
+      document.getElementById('icon-sound-off').classList.toggle('hidden', !soundFX.muted);
+    }
+
+    /**
+     * 社工/教育引導「情緒小分享」彈窗控制
+     */
+    function openShareModal(emotion) {
+      const modal = document.getElementById('share-modal');
+      const badge = document.getElementById('modal-emotion-badge');
+      const nameEl = document.getElementById('modal-emotion-name');
+      const defEl = document.getElementById('modal-emotion-def');
+      const qEl = document.getElementById('modal-emotion-question');
+
+      badge.style.backgroundColor = emotion.bgHex;
+      badge.innerHTML = emotion.svg;
+      nameEl.textContent = emotion.name;
+      nameEl.style.color = emotion.textHex;
+      defEl.textContent = emotion.definition;
+      qEl.textContent = emotion.question;
+
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function closeShareModal() {
+      const modal = document.getElementById('share-modal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+
+      if (state.pendingVictory) {
+        state.pendingVictory = false;
+        setTimeout(() => {
+          showVictoryModal();
+        }, 250);
+      }
+    }
+
+    /**
+     * 通關畫面控制
+     */
+    function showVictoryModal() {
+      soundFX.playVictory();
+      const totalPairs = DIFFICULTY_CONFIG[state.difficulty].pairs;
+      document.getElementById('win-pairs').textContent = `${totalPairs} 組情緒`;
+      document.getElementById('win-moves').textContent = `${state.moves} 步`;
+
+      const modal = document.getElementById('victory-modal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function closeVictoryAndRestart() {
+      const modal = document.getElementById('victory-modal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+      initGame();
+    }
+
+    // 啟動遊戲
+    window.addEventListener('DOMContentLoaded', () => {
+      initGame();
+    });
+  </script>
+</body>
+</html>
